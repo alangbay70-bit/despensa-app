@@ -556,6 +556,8 @@ export default function App() {
   const [household, setHousehold] = useState(null);
   const [householdMembers, setHouseholdMembers] = useState([]);
   const [showHouseholdModal, setShowHouseholdModal] = useState(false);
+  const [showExpiryAlert, setShowExpiryAlert] = useState(false);
+  const [expiryAlertProducts, setExpiryAlertProducts] = useState([]);
 
   // ── Auth listener ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -604,6 +606,22 @@ export default function App() {
     };
     loadProducts();
   }, [user, household]);
+
+  // ── Expiry alert on load ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!products.length) return;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const alertDays = 3;
+    const expiring = products.filter(p => {
+      if (!p.expiry) return false;
+      const days = Math.ceil((new Date(p.expiry) - today) / (1000 * 60 * 60 * 24));
+      return days <= alertDays;
+    }).sort((a, b) => new Date(a.expiry) - new Date(b.expiry));
+    if (expiring.length > 0) {
+      setExpiryAlertProducts(expiring);
+      setShowExpiryAlert(true);
+    }
+  }, [products]);
 
   // ── Load user plan ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1295,6 +1313,61 @@ export default function App() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* EXPIRY ALERT MODAL */}
+      {showExpiryAlert && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 2000, backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#1A1A2E", borderRadius: "24px 24px 0 0", padding: "28px 24px 40px", width: "100%", maxWidth: "480px", animation: "slideUp 0.3s ease" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+              <div>
+                <div style={{ fontSize: "32px", marginBottom: "6px" }}>⏰</div>
+                <h3 style={{ color: "#F5E6D0", fontSize: "20px", fontFamily: "'Playfair Display', serif", margin: 0 }}>
+                  Productos por caducar
+                </h3>
+                <p style={{ color: "#B0A090", fontSize: "13px", margin: "4px 0 0" }}>
+                  {expiryAlertProducts.length} producto{expiryAlertProducts.length > 1 ? "s requieren" : " requiere"} tu atención
+                </p>
+              </div>
+              <button onClick={() => setShowExpiryAlert(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#F5E6D0", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: "16px", flexShrink: 0 }}>✕</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px", maxHeight: "240px", overflowY: "auto" }}>
+              {expiryAlertProducts.map(p => {
+                const days = Math.ceil((new Date(p.expiry) - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
+                const isExpired = days < 0;
+                const isToday = days === 0;
+                const bg = isExpired ? "rgba(255,82,82,0.08)" : days <= 1 ? "rgba(255,82,82,0.06)" : "rgba(255,152,0,0.06)";
+                const border = isExpired ? "rgba(255,82,82,0.25)" : days <= 1 ? "rgba(255,82,82,0.2)" : "rgba(255,152,0,0.2)";
+                const badgeColor = isExpired ? "#FF5252" : days <= 1 ? "#FF5252" : "#FF9800";
+                const badgeText = isExpired ? "Caducado" : isToday ? "¡Hoy!" : `${days}d`;
+                return (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: bg, border: `1px solid ${border}`, borderRadius: "12px", padding: "12px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "22px" }}>{p.emoji}</span>
+                      <div>
+                        <div style={{ color: "#F5E6D0", fontWeight: "700", fontSize: "14px" }}>{p.name}</div>
+                        <div style={{ color: "#B0A090", fontSize: "12px" }}>{p.quantity} {p.unit}</div>
+                      </div>
+                    </div>
+                    <span style={{ background: badgeColor, color: "white", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "800", flexShrink: 0 }}>{badgeText}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <button onClick={() => setShowExpiryAlert(false)}
+                style={{ padding: "14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "14px", color: "#F5E6D0", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
+                Ignorar
+              </button>
+              <button onClick={() => { setShowExpiryAlert(false); setActiveTab("inventory"); }}
+                style={{ padding: "14px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "14px", fontWeight: "800", cursor: "pointer" }}>
+                Ver inventario →
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
