@@ -1354,6 +1354,19 @@ export default function App() {
               </div>
             </div>
 
+            {/* Fecha de caducidad */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad</label>
+              <input type="date" value={editingProduct.expiry || ""} onChange={e => setEditingProduct({...editingProduct, expiry: e.target.value})}
+                style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", boxSizing: "border-box", outline: "none", colorScheme: "dark" }} />
+              {editingProduct.expiry && (() => {
+                const days = Math.ceil((new Date(editingProduct.expiry) - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
+                const color = days < 0 ? "#FF5252" : days <= 5 ? "#FF9800" : "#AED581";
+                const msg = days < 0 ? "⚠️ Ya caducó" : days === 0 ? "⚠️ Caduca hoy" : `✓ Caduca en ${days} día${days === 1 ? "" : "s"}`;
+                return <div style={{ marginTop: "6px", fontSize: "12px", color, fontWeight: "600" }}>{msg}</div>;
+              })()}
+            </div>
+
             {/* Cambiar categoría */}
             <div style={{ marginBottom: "20px" }}>
               <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Ubicación</label>
@@ -1368,7 +1381,7 @@ export default function App() {
             </div>
 
             <button onClick={() => {
-              updateProduct(editingProduct.id, { quantity: editingProduct.quantity, unit: editingProduct.unit, category: editingProduct.category });
+              updateProduct(editingProduct.id, { quantity: editingProduct.quantity, unit: editingProduct.unit, category: editingProduct.category, expiry: editingProduct.expiry || null });
               setEditingProduct(null);
             }} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "16px", fontWeight: "800", cursor: "pointer" }}>
               ✓ Guardar cambios
