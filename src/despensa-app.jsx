@@ -616,7 +616,16 @@ export default function App() {
   const addProduct = async (form) => {
     if (!user) return;
     const { data: profile } = await supabase.from("profiles").select("household_id").eq("id", user.id).single();
-    const newProduct = { user_id: user.id, household_id: profile?.household_id || null, name: form.name, category: form.category, quantity: Number(form.quantity), unit: form.unit, expiry: form.expiry, emoji: form.emoji };
+    const newProduct = {
+      user_id: user.id,
+      household_id: profile?.household_id || null,
+      name: form.name || "Producto",
+      category: form.category || "pantry",
+      quantity: Number(form.quantity) || 1,
+      unit: form.unit || "pza",
+      expiry: form.expiry || null,
+      emoji: form.emoji || "📦"
+    };
     const { data, error } = await supabase.from("products").insert(newProduct).select().single();
     if (!error && data) setProducts(prev => [data, ...prev]);
   };
