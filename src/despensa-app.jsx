@@ -256,15 +256,35 @@ function AddProductModal({ onClose, onAdd, currentCount, isPremium }) {
 }
 
 // ── Recipe Modal ──────────────────────────────────────────────────────────────
-function RecipeModal({ recipe, onClose }) {
+function RecipeModal({ recipe, onClose, products, onUpdateProduct }) {
   const [servings, setServings] = useState(recipe.servings || 2);
+  const [cooked, setCooked] = useState(false);
+  const [deducted, setDeducted] = useState([]);
   const baseServings = recipe.servings || 2;
+
   const scaleIngredient = (ing) => {
     if (typeof ing === "object" && ing.qty) {
       const scaled = (ing.qty / baseServings) * servings;
       return `${Math.round(scaled * 10) / 10} ${ing.unit} de ${ing.name}`;
     }
     return ing;
+  };
+
+  const handleCook = () => {
+    if (!products || !onUpdateProduct) return;
+    const deductions = [];
+    recipe.ingredients.forEach(ing => {
+      if (typeof ing !== "object" || !ing.qty) return;
+      const scaledQty = (ing.qty / baseServings) * servings;
+      const match = products.find(p => p.name.toLowerCase().includes(ing.name.toLowerCase()) || ing.name.toLowerCase().includes(p.name.toLowerCase()));
+      if (match) {
+        const newQty = Math.max(0, parseFloat(match.quantity) - scaledQty);
+        onUpdateProduct(match.id, { quantity: Math.round(newQty * 10) / 10 });
+        deductions.push({ name: match.name, emoji: match.emoji, restado: Math.round(scaledQty * 10) / 10, unit: ing.unit });
+      }
+    });
+    setDeducted(deductions);
+    setCooked(true);
   };
 
   return (
@@ -287,6 +307,7 @@ function RecipeModal({ recipe, onClose }) {
             <button onClick={() => setServings(servings + 1)} style={{ background: "rgba(255,140,66,0.2)", border: "none", color: "#FF8C42", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: "18px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
           </div>
         </div>
+
         <div style={{ marginBottom: "18px" }}>
           <h4 style={{ color: "#B0A090", fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "10px" }}>Ingredientes</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -297,6 +318,7 @@ function RecipeModal({ recipe, onClose }) {
             ))}
           </div>
         </div>
+
         <div style={{ marginBottom: "24px" }}>
           <h4 style={{ color: "#B0A090", fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "10px" }}>Preparación</h4>
           {recipe.steps.map((step, i) => (
@@ -306,6 +328,26 @@ function RecipeModal({ recipe, onClose }) {
             </div>
           ))}
         </div>
+
+        {/* Botón cocinar */}
+        {!cooked ? (
+          <button onClick={handleCook}
+            style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "15px", fontWeight: "800", cursor: "pointer", marginBottom: "10px" }}>
+            🍳 ¡Voy a preparar esta receta!
+          </button>
+        ) : (
+          <div style={{ background: "rgba(174,213,129,0.1)", border: "1px solid rgba(174,213,129,0.3)", borderRadius: "14px", padding: "14px", marginBottom: "10px" }}>
+            <div style={{ color: "#AED581", fontWeight: "700", fontSize: "14px", marginBottom: "8px" }}>✅ ¡Ingredientes descontados del inventario!</div>
+            {deducted.length > 0 ? deducted.map((d, i) => (
+              <div key={i} style={{ color: "#D0C0B0", fontSize: "13px", marginBottom: "4px" }}>
+                {d.emoji} {d.name} → −{d.restado} {d.unit}
+              </div>
+            )) : (
+              <div style={{ color: "#B0A090", fontSize: "13px" }}>No se encontraron coincidencias en tu inventario.</div>
+            )}
+          </div>
+        )}
+
         <button onClick={onClose} style={{ width: "100%", padding: "14px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "14px", color: "#F5E6D0", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>Cerrar</button>
       </div>
     </div>
@@ -1034,7 +1076,7 @@ export default function App() {
       </div>
 
       {showAddModal && <AddProductModal onClose={() => setShowAddModal(false)} onAdd={addProduct} currentCount={products.length} isPremium={isPremium} />}
-      {selectedRecipe && <RecipeModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />}
+      {selectedRecipe && <RecipeModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} products={products} onUpdateProduct={updateProduct} />}}
 
       {/* EDIT PRODUCT MODAL */}
       {editingProduct && (
