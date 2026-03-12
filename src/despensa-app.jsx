@@ -622,11 +622,13 @@ export default function App() {
 
   const createHousehold = async (name) => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const { data: hh, error } = await supabase.from("households").insert({ name, owner_id: user.id, invite_code: code }).select().single();
-    if (error || !hh) return null;
-    // Actualizar household_id en profile y products del usuario
-    await supabase.from("profiles").update({ household_id: hh.id }).eq("id", user.id);
-    await supabase.from("products").update({ household_id: hh.id }).eq("user_id", user.id);
+    const { data: hh, error: hhError } = await supabase.from("households").insert({ name, owner_id: user.id, invite_code: code }).select().single();
+    console.log("CREATE HOUSEHOLD:", { hh, hhError });
+    if (hhError || !hh) return null;
+    const { error: profError } = await supabase.from("profiles").update({ household_id: hh.id }).eq("id", user.id);
+    console.log("UPDATE PROFILE:", { profError });
+    const { error: prodError } = await supabase.from("products").update({ household_id: hh.id }).eq("user_id", user.id);
+    console.log("UPDATE PRODUCTS:", { prodError });
     setHousehold(hh);
     return hh;
   };
