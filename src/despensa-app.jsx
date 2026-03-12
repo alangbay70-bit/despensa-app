@@ -410,6 +410,117 @@ function CheckoutMP({ plan, userEmail, onBack, onSuccess }) {
   );
 }
 
+// ── Household Modal ───────────────────────────────────────────────────────────
+function HouseholdModal({ household, members, userId, onCreateHousehold, onJoinHousehold, onLeaveHousehold, onClose }) {
+  const [view, setView] = useState(household ? "detail" : "home");
+  const [houseName, setHouseName] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [currentHousehold, setCurrentHousehold] = useState(household);
+
+  const handleCreate = async () => {
+    if (!houseName.trim()) { setMsg("Escribe un nombre para tu hogar."); return; }
+    setLoading(true);
+    const hh = await onCreateHousehold(houseName.trim());
+    if (hh) { setCurrentHousehold(hh); setView("detail"); setMsg(""); }
+    else setMsg("Error al crear el hogar. Intenta de nuevo.");
+    setLoading(false);
+  };
+
+  const handleJoin = async () => {
+    if (!joinCode.trim()) { setMsg("Escribe el código de invitación."); return; }
+    setLoading(true);
+    const result = await onJoinHousehold(joinCode.trim());
+    if (result.ok) { setView("detail"); setMsg(""); }
+    else setMsg(result.msg);
+    setLoading(false);
+  };
+
+  const handleLeave = async () => {
+    setLoading(true);
+    await onLeaveHousehold();
+    setCurrentHousehold(null);
+    setLoading(false);
+    onClose();
+  };
+
+  const hh = currentHousehold || household;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)" }}>
+      <div style={{ background: "#1A1A2E", borderRadius: "24px 24px 0 0", padding: "28px 24px 40px", width: "100%", maxWidth: "480px", animation: "slideUp 0.3s ease" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <h3 style={{ color: "#F5E6D0", fontSize: "20px", fontFamily: "'Playfair Display', serif", margin: 0 }}>🏠 Hogar compartido</h3>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#F5E6D0", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: "16px" }}>✕</button>
+        </div>
+
+        {/* Sin hogar - opciones */}
+        {!hh && view === "home" && (
+          <div>
+            <p style={{ color: "#B0A090", fontSize: "14px", marginBottom: "20px", lineHeight: "1.6" }}>Comparte tu inventario con hasta 4 personas más. Todos verán y podrán editar los mismos productos.</p>
+            <button onClick={() => setView("create")} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "15px", fontWeight: "800", cursor: "pointer", marginBottom: "10px" }}>
+              🏠 Crear mi hogar
+            </button>
+            <button onClick={() => setView("join")} style={{ width: "100%", padding: "16px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "14px", color: "#F5E6D0", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>
+              🔗 Unirme a un hogar existente
+            </button>
+          </div>
+        )}
+
+        {/* Crear hogar */}
+        {view === "create" && (
+          <div>
+            <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Nombre del hogar</label>
+            <input value={houseName} onChange={e => setHouseName(e.target.value)} placeholder="Ej: Casa García, Familia López..."
+              style={{ width: "100%", padding: "14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none", marginTop: "8px", marginBottom: "16px" }} />
+            {msg && <div style={{ color: "#FF5252", fontSize: "13px", marginBottom: "12px" }}>{msg}</div>}
+            <button onClick={handleCreate} disabled={loading} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "15px", fontWeight: "800", cursor: "pointer", marginBottom: "10px" }}>
+              {loading ? "Creando..." : "✓ Crear hogar"}
+            </button>
+            <button onClick={() => { setView("home"); setMsg(""); }} style={{ width: "100%", padding: "14px", background: "none", border: "none", color: "#B0A090", fontSize: "14px", cursor: "pointer" }}>← Regresar</button>
+          </div>
+        )}
+
+        {/* Unirse a hogar */}
+        {view === "join" && (
+          <div>
+            <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Código de invitación</label>
+            <input value={joinCode} onChange={e => setJoinCode(e.target.value)} placeholder="Ej: AB12CD"
+              style={{ width: "100%", padding: "14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "18px", fontWeight: "700", outline: "none", marginTop: "8px", marginBottom: "16px", letterSpacing: "4px", textTransform: "uppercase", textAlign: "center" }} />
+            {msg && <div style={{ color: "#FF5252", fontSize: "13px", marginBottom: "12px" }}>{msg}</div>}
+            <button onClick={handleJoin} disabled={loading} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "15px", fontWeight: "800", cursor: "pointer", marginBottom: "10px" }}>
+              {loading ? "Uniéndome..." : "🔗 Unirme al hogar"}
+            </button>
+            <button onClick={() => { setView("home"); setMsg(""); }} style={{ width: "100%", padding: "14px", background: "none", border: "none", color: "#B0A090", fontSize: "14px", cursor: "pointer" }}>← Regresar</button>
+          </div>
+        )}
+
+        {/* Detalle del hogar activo */}
+        {hh && (view === "detail" || view === "home") && (
+          <div>
+            <div style={{ background: "rgba(174,213,129,0.08)", border: "1px solid rgba(174,213,129,0.2)", borderRadius: "16px", padding: "16px", marginBottom: "20px" }}>
+              <div style={{ fontWeight: "800", fontSize: "17px", color: "#AED581", marginBottom: "6px" }}>🏠 {hh.name}</div>
+              <div style={{ color: "#B0A090", fontSize: "13px", marginBottom: "12px" }}>{(members?.length || 0) + 1} de 5 miembros</div>
+              {hh.owner_id === userId && (
+                <div>
+                  <div style={{ color: "#B0A090", fontSize: "12px", marginBottom: "6px", fontWeight: "600" }}>CÓDIGO DE INVITACIÓN</div>
+                  <div style={{ background: "#0F0F1A", borderRadius: "10px", padding: "12px", textAlign: "center", letterSpacing: "6px", fontSize: "22px", fontWeight: "800", color: "#FFB74D" }}>{hh.invite_code}</div>
+                  <div style={{ color: "#B0A090", fontSize: "11px", textAlign: "center", marginTop: "6px" }}>Comparte este código con tu familia</div>
+                </div>
+              )}
+            </div>
+            <button onClick={handleLeave} disabled={loading}
+              style={{ width: "100%", padding: "14px", background: "rgba(255,82,82,0.1)", border: "1px solid rgba(255,82,82,0.2)", borderRadius: "14px", color: "#FF5252", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
+              {loading ? "..." : hh.owner_id === userId ? "🗑️ Disolver hogar" : "🚪 Salir del hogar"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
@@ -441,6 +552,9 @@ export default function App() {
   const [couponError, setCouponError] = useState("");
   const [couponSuccess, setCouponSuccess] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
+  const [household, setHousehold] = useState(null);
+  const [householdMembers, setHouseholdMembers] = useState([]);
+  const [showHouseholdModal, setShowHouseholdModal] = useState(false);
 
   // ── Auth listener ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -454,16 +568,41 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Load household ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) { setHousehold(null); setHouseholdMembers([]); return; }
+    // Buscar si el usuario tiene hogar (como dueño o miembro)
+    const loadHousehold = async () => {
+      const { data: profile } = await supabase.from("profiles").select("household_id").eq("id", user.id).single();
+      if (profile?.household_id) {
+        const { data: hh } = await supabase.from("households").select("*").eq("id", profile.household_id).single();
+        setHousehold(hh);
+        const { data: members } = await supabase.from("household_members").select("user_id").eq("household_id", profile.household_id);
+        setHouseholdMembers(members || []);
+      }
+    };
+    loadHousehold();
+  }, [user]);
+
   // ── Load products from Supabase ──────────────────────────────────────────
   useEffect(() => {
     if (!user) { setProducts([]); return; }
     setLoadingProducts(true);
-    supabase.from("products").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (!error && data) setProducts(data.map(p => ({ ...p, expiry: p.expiry })));
-        setLoadingProducts(false);
-      });
-  }, [user]);
+    const loadProducts = async () => {
+      const { data: profile } = await supabase.from("profiles").select("household_id").eq("id", user.id).single();
+      let query = supabase.from("products").select("*").order("created_at", { ascending: false });
+      if (profile?.household_id) {
+        // Cargar productos del hogar completo
+        query = query.eq("household_id", profile.household_id);
+      } else {
+        query = query.eq("user_id", user.id);
+      }
+      const { data, error } = await query;
+      if (!error && data) setProducts(data);
+      setLoadingProducts(false);
+    };
+    loadProducts();
+  }, [user, household]);
 
   // ── Load user plan ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -475,9 +614,48 @@ export default function App() {
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const addProduct = async (form) => {
     if (!user) return;
-    const newProduct = { user_id: user.id, name: form.name, category: form.category, quantity: Number(form.quantity), unit: form.unit, expiry: form.expiry, emoji: form.emoji };
+    const { data: profile } = await supabase.from("profiles").select("household_id").eq("id", user.id).single();
+    const newProduct = { user_id: user.id, household_id: profile?.household_id || null, name: form.name, category: form.category, quantity: Number(form.quantity), unit: form.unit, expiry: form.expiry, emoji: form.emoji };
     const { data, error } = await supabase.from("products").insert(newProduct).select().single();
     if (!error && data) setProducts(prev => [data, ...prev]);
+  };
+
+  const createHousehold = async (name) => {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const { data: hh, error } = await supabase.from("households").insert({ name, owner_id: user.id, invite_code: code }).select().single();
+    if (error || !hh) return null;
+    // Actualizar household_id en profile y products del usuario
+    await supabase.from("profiles").update({ household_id: hh.id }).eq("id", user.id);
+    await supabase.from("products").update({ household_id: hh.id }).eq("user_id", user.id);
+    setHousehold(hh);
+    return hh;
+  };
+
+  const joinHousehold = async (code) => {
+    const { data: hh, error } = await supabase.from("households").select("*").eq("invite_code", code.trim().toUpperCase()).single();
+    if (error || !hh) return { ok: false, msg: "Código inválido. Verifica e intenta de nuevo." };
+    const members = await supabase.from("household_members").select("user_id").eq("household_id", hh.id);
+    if ((members.data?.length || 0) >= 4) return { ok: false, msg: "Este hogar ya tiene el máximo de 5 miembros." };
+    await supabase.from("household_members").insert({ household_id: hh.id, user_id: user.id });
+    await supabase.from("profiles").update({ household_id: hh.id }).eq("id", user.id);
+    await supabase.from("products").update({ household_id: hh.id }).eq("user_id", user.id);
+    setHousehold(hh);
+    return { ok: true };
+  };
+
+  const leaveHousehold = async () => {
+    if (!household) return;
+    if (household.owner_id === user.id) {
+      // Dueño disuelve el hogar: quitar household_id a todos
+      await supabase.from("profiles").update({ household_id: null }).eq("household_id", household.id);
+      await supabase.from("products").update({ household_id: null }).eq("household_id", household.id);
+      await supabase.from("households").delete().eq("id", household.id);
+    } else {
+      await supabase.from("household_members").delete().eq("household_id", household.id).eq("user_id", user.id);
+      await supabase.from("profiles").update({ household_id: null }).eq("id", user.id);
+      await supabase.from("products").update({ household_id: null }).eq("user_id", user.id);
+    }
+    setHousehold(null); setHouseholdMembers([]);
   };
 
   const removeProduct = async (id) => {
@@ -655,6 +833,7 @@ export default function App() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <button onClick={() => setShowScanner(true)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "14px", padding: "10px 14px", color: "#F5E6D0", fontWeight: "700", fontSize: "14px", cursor: "pointer" }}>📷</button>
             <button onClick={() => setShowAddModal(true)} style={{ background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "16px", padding: "10px 18px", color: "#1A1A2E", fontWeight: "800", fontSize: "14px", cursor: "pointer" }}>+ Agregar</button>
+            {isPremium && <button onClick={() => setShowHouseholdModal(true)} style={{ background: household ? "rgba(174,213,129,0.15)" : "rgba(255,255,255,0.07)", border: `1px solid ${household ? "rgba(174,213,129,0.3)" : "rgba(255,255,255,0.1)"}`, borderRadius: "12px", padding: "8px 12px", color: household ? "#AED581" : "#B0A090", fontSize: "12px", cursor: "pointer" }}>{household ? "🏠 Hogar" : "🏠"}</button>}
             <button onClick={handleSignOut} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "8px 12px", color: "#B0A090", fontSize: "12px", cursor: "pointer" }}>Salir</button>
           </div>
         </div>
@@ -1076,7 +1255,20 @@ export default function App() {
       </div>
 
       {showAddModal && <AddProductModal onClose={() => setShowAddModal(false)} onAdd={addProduct} currentCount={products.length} isPremium={isPremium} />}
-      {selectedRecipe && <RecipeModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} products={products} onUpdateProduct={updateProduct} />}}
+      {selectedRecipe && <RecipeModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} products={products} onUpdateProduct={updateProduct} />}
+
+      {/* HOUSEHOLD MODAL */}
+      {showHouseholdModal && (
+        <HouseholdModal
+          household={household}
+          members={householdMembers}
+          userId={user?.id}
+          onCreateHousehold={createHousehold}
+          onJoinHousehold={joinHousehold}
+          onLeaveHousehold={leaveHousehold}
+          onClose={() => setShowHouseholdModal(false)}
+        />
+      )}}}
 
       {/* EDIT PRODUCT MODAL */}
       {editingProduct && (
