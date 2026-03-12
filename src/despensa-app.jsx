@@ -783,13 +783,13 @@ export default function App() {
       const data = await res.json();
       if (data.status === 1 && data.product) {
         const p = data.product;
-        const name = p.product_name_es || p.product_name || p.generic_name || "Producto desconocido";
-        setScanResult({ name, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
+        const name = p.product_name_es || p.product_name_mx || p.product_name || p.generic_name_es || p.generic_name || p.abbreviated_product_name || "";
+        setScanResult({ name, needsName: !name, barcode, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
       } else {
-        setScanResult({ name: `Producto (${barcode})`, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
+        setScanResult({ name: "", needsName: true, barcode, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
       }
     } catch (e) {
-      setScanResult({ name: `Producto (${barcode})`, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
+      setScanResult({ name: "", needsName: true, barcode, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
     }
     setScanLoading(false);
   };
@@ -1245,14 +1245,34 @@ export default function App() {
               <div id="qr-reader" style={{ width: "100%", borderRadius: "16px", overflow: "hidden", border: "2px solid rgba(255,183,77,0.4)" }} />
             </div>
           ) : (
-            <div style={{ width: "260px", height: "160px", background: "rgba(255,255,255,0.04)", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "20px" }}>
+            <div style={{ width: "100%", maxWidth: "300px", background: "rgba(255,255,255,0.04)", borderRadius: "16px", padding: "20px", marginBottom: "20px" }}>
               {scanResult.error ? (
-                <div style={{ textAlign: "center", padding: "20px", color: "#FF5252", fontSize: "13px" }}>{scanResult.error}</div>
+                <div style={{ textAlign: "center", color: "#FF5252", fontSize: "13px" }}>{scanResult.error}</div>
               ) : (
-                <div style={{ textAlign: "center", padding: "20px" }}>
-                  <div style={{ fontSize: "48px", marginBottom: "8px" }}>{scanResult.emoji}</div>
-                  <div style={{ color: "#AED581", fontWeight: "800", fontSize: "16px" }}>✓ Producto detectado</div>
-                  <div style={{ color: "white", fontWeight: "700", fontSize: "14px", marginTop: "4px" }}>{scanResult.name}</div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "40px", marginBottom: "6px" }}>{scanResult.emoji}</div>
+                  {scanResult.needsName ? (
+                    <>
+                      <div style={{ color: "#FFB74D", fontWeight: "700", fontSize: "13px", marginBottom: "10px" }}>⚠️ Producto no encontrado en la base de datos.<br/>Escribe el nombre manualmente:</div>
+                      <input
+                        autoFocus
+                        value={scanResult.name}
+                        onChange={e => setScanResult({ ...scanResult, name: e.target.value, needsName: !e.target.value.trim() })}
+                        placeholder="Nombre del producto..."
+                        style={{ width: "100%", padding: "10px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,183,77,0.5)", borderRadius: "10px", color: "white", fontSize: "14px", outline: "none", textAlign: "center" }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ color: "#AED581", fontWeight: "800", fontSize: "15px", marginBottom: "4px" }}>✓ Producto detectado</div>
+                      <input
+                        value={scanResult.name}
+                        onChange={e => setScanResult({ ...scanResult, name: e.target.value })}
+                        style={{ width: "100%", padding: "8px 12px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "white", fontSize: "14px", fontWeight: "700", outline: "none", textAlign: "center" }}
+                      />
+                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "11px", marginTop: "4px" }}>Puedes editar el nombre si es necesario</div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1266,8 +1286,10 @@ export default function App() {
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => { setScanResult(null); setScanLoading(false); }} style={{ padding: "14px 24px", background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "14px", color: "white", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>Volver a escanear</button>
               {!scanResult.error && (
-                <button onClick={() => { addProduct({ ...scanResult }); stopScanner(); setShowScanner(false); setScanResult(null); setActiveTab("inventory"); }}
-                  style={{ padding: "14px 24px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "14px", fontWeight: "800", cursor: "pointer" }}>
+                <button
+                  disabled={!scanResult.name?.trim()}
+                  onClick={() => { addProduct({ ...scanResult }); stopScanner(); setShowScanner(false); setScanResult(null); setActiveTab("inventory"); }}
+                  style={{ padding: "14px 24px", background: scanResult.name?.trim() ? "linear-gradient(135deg, #FF8C42, #FFB74D)" : "rgba(255,255,255,0.1)", border: "none", borderRadius: "14px", color: scanResult.name?.trim() ? "#1A1A2E" : "#666", fontSize: "14px", fontWeight: "800", cursor: scanResult.name?.trim() ? "pointer" : "not-allowed" }}>
                   ✓ Agregar al inventario
                 </button>
               )}
@@ -1317,9 +1339,17 @@ export default function App() {
           <div style={{ background: "#1A1A2E", borderRadius: "24px 24px 0 0", padding: "28px 24px 40px", width: "100%", maxWidth: "480px", animation: "slideUp 0.3s ease" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h3 style={{ color: "#F5E6D0", fontSize: "20px", fontFamily: "'Playfair Display', serif", margin: 0 }}>
-                {editingProduct.emoji} {editingProduct.name}
+                {editingProduct.emoji} Editar producto
               </h3>
               <button onClick={() => setEditingProduct(null)} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#F5E6D0", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: "16px" }}>✕</button>
+            </div>
+
+            {/* Nombre */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Nombre del producto</label>
+              <input value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}
+                placeholder="Nombre del producto"
+                style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
             </div>
 
             {/* Cantidad actual */}
@@ -1354,19 +1384,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Fecha de caducidad */}
-            <div style={{ marginBottom: "16px" }}>
-              <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad</label>
-              <input type="date" value={editingProduct.expiry || ""} onChange={e => setEditingProduct({...editingProduct, expiry: e.target.value})}
-                style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", boxSizing: "border-box", outline: "none", colorScheme: "dark" }} />
-              {editingProduct.expiry && (() => {
-                const days = Math.ceil((new Date(editingProduct.expiry) - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
-                const color = days < 0 ? "#FF5252" : days <= 5 ? "#FF9800" : "#AED581";
-                const msg = days < 0 ? "⚠️ Ya caducó" : days === 0 ? "⚠️ Caduca hoy" : `✓ Caduca en ${days} día${days === 1 ? "" : "s"}`;
-                return <div style={{ marginTop: "6px", fontSize: "12px", color, fontWeight: "600" }}>{msg}</div>;
-              })()}
-            </div>
-
             {/* Cambiar categoría */}
             <div style={{ marginBottom: "20px" }}>
               <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Ubicación</label>
@@ -1381,7 +1398,7 @@ export default function App() {
             </div>
 
             <button onClick={() => {
-              updateProduct(editingProduct.id, { quantity: editingProduct.quantity, unit: editingProduct.unit, category: editingProduct.category, expiry: editingProduct.expiry || null });
+              updateProduct(editingProduct.id, { name: editingProduct.name, quantity: editingProduct.quantity, unit: editingProduct.unit, category: editingProduct.category, expiry: editingProduct.expiry || null });
               setEditingProduct(null);
             }} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "16px", fontWeight: "800", cursor: "pointer" }}>
               ✓ Guardar cambios
