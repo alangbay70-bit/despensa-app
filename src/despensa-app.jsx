@@ -8,6 +8,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const FREE_LIMIT = 20;
 
+// ── MercadoPago config ────────────────────────────────────────────────────────
+const MP_PUBLIC_KEY = "TEST-229045b1-91e4-4a3a-9f90-2db010bea093";
+const MP_ACCESS_TOKEN = "TEST-7631958493074722-031121-257234f78fe8a294a6e0fc2b91cd41d5-132726135";
+
 // ── Static data ──────────────────────────────────────────────────────────────
 const CATEGORIES = [
   { id: "fridge", label: "Refrigerador", icon: "🧊", color: "#4FC3F7" },
@@ -304,6 +308,104 @@ function RecipeModal({ recipe, onClose }) {
         </div>
         <button onClick={onClose} style={{ width: "100%", padding: "14px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "14px", color: "#F5E6D0", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>Cerrar</button>
       </div>
+    </div>
+  );
+}
+
+// ── MercadoPago Checkout ──────────────────────────────────────────────────────
+function CheckoutMP({ plan, userEmail, onBack, onSuccess }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handlePay = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      // Crear preferencia de suscripción via MercadoPago
+      const amount = plan.id === "annual" ? 349 : 49;
+      const frequency = plan.id === "annual" ? 12 : 1;
+
+      const response = await fetch("https://api.mercadopago.com/preapproval_plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${MP_ACCESS_TOKEN}`,
+        },
+        body: JSON.stringify({
+          reason: `Despensa App Premium - Plan ${plan.name}`,
+          auto_recurring: {
+            frequency,
+            frequency_type: "months",
+            transaction_amount: amount,
+            currency_id: "MXN",
+          },
+          back_url: "https://despensa-app.vercel.app",
+        }),
+      });
+
+      const data = await response.json();
+      if (data.init_point) {
+        window.open(data.init_point, "_blank");
+        onSuccess();
+      } else {
+        throw new Error(data.message || "Error al crear el pago");
+      }
+    } catch (e) {
+      setError("No se pudo conectar con MercadoPago. Intenta de nuevo.");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+        <button onClick={onBack} style={{ background: "rgba(255,255,255,0.07)", border: "none", color: "#F5E6D0", width: 36, height: 36, borderRadius: "50%", cursor: "pointer", fontSize: "16px" }}>←</button>
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "22px", margin: 0 }}>Pago seguro</h2>
+      </div>
+
+      <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "18px", padding: "18px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontWeight: "700", fontSize: "15px" }}>Despensa Premium {plan?.name}</div>
+            <div style={{ color: "#B0A090", fontSize: "13px", marginTop: "4px" }}>
+              Facturado {plan?.id === "annual" ? "anualmente" : "mensualmente"}
+            </div>
+            {userEmail && <div style={{ color: "#B0A090", fontSize: "12px", marginTop: "2px" }}>{userEmail}</div>}
+          </div>
+          <div style={{ fontWeight: "800", fontSize: "18px", color: "#FFB74D" }}>{plan?.total}</div>
+        </div>
+      </div>
+
+      <div style={{ background: "rgba(0,158,227,0.06)", border: "1px solid rgba(0,158,227,0.2)", borderRadius: "14px", padding: "14px 16px", marginBottom: "20px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
+        <span style={{ fontSize: "18px" }}>ℹ️</span>
+        <div style={{ fontSize: "12px", color: "#B0A090", lineHeight: "1.5" }}>
+          Serás redirigido a MercadoPago para completar tu suscripción de forma segura. Puedes cancelar en cualquier momento.
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ background: "rgba(255,82,82,0.1)", border: "1px solid rgba(255,82,82,0.3)", borderRadius: "12px", padding: "12px", color: "#FF5252", fontSize: "13px", marginBottom: "16px" }}>
+          {error}
+        </div>
+      )}
+
+      <button onClick={handlePay} disabled={loading}
+        style={{ width: "100%", padding: "16px", background: loading ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg, #009EE3, #00C4FF)", border: "none", borderRadius: "16px", color: loading ? "#666" : "white", fontSize: "16px", fontWeight: "800", cursor: loading ? "not-allowed" : "pointer", marginBottom: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+        {loading ? (
+          <><span style={{ animation: "pulse 1s infinite" }}>⏳</span> Procesando...</>
+        ) : (
+          <>💳 Pagar con MercadoPago</>
+        )}
+      </button>
+
+      <div style={{ display: "flex", justifyContent: "center", gap: "16px", marginTop: "12px" }}>
+        {["Visa", "Mastercard", "OXXO", "SPEI"].map(m => (
+          <span key={m} style={{ color: "#666", fontSize: "11px", fontWeight: "600" }}>{m}</span>
+        ))}
+      </div>
+      <p style={{ color: "#555", fontSize: "11px", textAlign: "center", marginTop: "10px" }}>
+        🔒 Pago seguro · Cancela cuando quieras
+      </p>
     </div>
   );
 }
@@ -810,26 +912,12 @@ export default function App() {
                 </>
               )}
               {paymentStep === "checkout" && (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-                    <button onClick={() => setPaymentStep("plans")} style={{ background: "rgba(255,255,255,0.07)", border: "none", color: "#F5E6D0", width: 36, height: 36, borderRadius: "50%", cursor: "pointer", fontSize: "16px" }}>←</button>
-                    <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "22px", margin: 0 }}>Pago seguro</h2>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "18px", padding: "18px", marginBottom: "24px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: "700", fontSize: "15px" }}>Despensa Premium {PLANS.find(p=>p.id===selectedPlan)?.name}</div>
-                        <div style={{ color: "#B0A090", fontSize: "13px", marginTop: "4px" }}>Facturado {selectedPlan === "annual" ? "anualmente" : "mensualmente"}</div>
-                      </div>
-                      <div style={{ fontWeight: "800", fontSize: "18px", color: "#FFB74D" }}>{PLANS.find(p=>p.id===selectedPlan)?.total}</div>
-                    </div>
-                  </div>
-                  <button onClick={() => setPaymentStep("success")}
-                    style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #009EE3, #00C4FF)", border: "none", borderRadius: "16px", color: "white", fontSize: "16px", fontWeight: "800", cursor: "pointer", marginBottom: "10px" }}>
-                    💳 Pagar con MercadoPago
-                  </button>
-                  <p style={{ color: "#666", fontSize: "11px", textAlign: "center", margin: 0 }}>Al continuar aceptas los Términos y Condiciones · Cancela en cualquier momento</p>
-                </>
+                <CheckoutMP
+                  plan={PLANS.find(p => p.id === selectedPlan)}
+                  userEmail={user?.email}
+                  onBack={() => setPaymentStep("plans")}
+                  onSuccess={() => setPaymentStep("success")}
+                />
               )}
               {paymentStep === "success" && (
                 <div style={{ textAlign: "center", padding: "40px 20px" }}>
