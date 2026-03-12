@@ -1,3 +1,4 @@
+import { Html5Qrcode } from "html5-qrcode";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -735,16 +736,55 @@ export default function App() {
   const toggleShoppingItem = (id) => setShoppingList(prev => prev.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
   const removeShoppingItem = (id) => setShoppingList(prev => prev.filter(i => i.id !== id));
 
-  const simulateScan = () => {
+  const scannerRef = useRef(null);
+
+  const startScanner = async () => {
     setScanLoading(true);
-    const mockProducts = [
-      { name: "Leche Lala Entera", emoji: "🥛", category: "fridge", quantity: 1, unit: "L", expiry: "2026-03-28" },
-      { name: "Galletas Marías", emoji: "🍪", category: "pantry", quantity: 1, unit: "paquete", expiry: "2026-09-01" },
-      { name: "Atún en agua", emoji: "🐟", category: "pantry", quantity: 1, unit: "lata", expiry: "2027-01-01" },
-      { name: "Yogur Natural", emoji: "🥛", category: "fridge", quantity: 1, unit: "pza", expiry: "2026-03-18" },
-    ];
-    setTimeout(() => { setScanResult(mockProducts[Math.floor(Math.random() * mockProducts.length)]); setScanLoading(false); }, 1800);
+    setScanResult(null);
+    try {
+      const html5QrCode = new Html5Qrcode("qr-reader");
+      scannerRef.current = html5QrCode;
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        async (decodedText) => {
+          await html5QrCode.stop();
+          setScanLoading(false);
+          lookupBarcode(decodedText);
+        },
+        () => {}
+      );
+    } catch (e) {
+      setScanLoading(false);
+      setScanResult({ error: "No se pudo acceder a la cámara. Verifica los permisos." });
+    }
   };
+
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try { await scannerRef.current.stop(); } catch (e) {}
+      scannerRef.current = null;
+    }
+  };
+
+  const lookupBarcode = async (barcode) => {
+    setScanLoading(true);
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+      const data = await res.json();
+      if (data.status === 1 && data.product) {
+        const p = data.product;
+        const name = p.product_name_es || p.product_name || p.generic_name || "Producto desconocido";
+        setScanResult({ name, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
+      } else {
+        setScanResult({ name: `Producto (${barcode})`, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
+      }
+    } catch (e) {
+      setScanResult({ name: `Producto (${barcode})`, emoji: "📦", category: "pantry", quantity: 1, unit: "pza", expiry: "" });
+    }
+    setScanLoading(false);
+  };
+
 
   const PLANS = [
     { id: "monthly", name: "Mensual", price: "$49", period: "/mes", total: "$49/mes", color: "#FFB74D", popular: false },
@@ -1184,54 +1224,44 @@ export default function App() {
 
       {/* SCANNER MODAL */}
       {showScanner && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
-          <button onClick={() => { setShowScanner(false); setScanResult(null); setScanLoading(false); }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
+          <button onClick={() => { stopScanner(); setShowScanner(false); setScanResult(null); setScanLoading(false); }}
             style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.1)", border: "none", color: "white", width: 40, height: 40, borderRadius: "50%", cursor: "pointer", fontSize: "18px" }}>✕</button>
-          <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          <div style={{ textAlign: "center", marginBottom: "20px" }}>
             <h3 style={{ color: "white", fontFamily: "'Playfair Display', serif", fontSize: "22px", margin: "0 0 8px" }}>Escáner de Código de Barras</h3>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>Apunta la cámara al código del producto</p>
           </div>
-          <div style={{ width: "260px", height: "260px", position: "relative", marginBottom: "28px" }}>
-            <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.04)", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {scanLoading ? (
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "36px", animation: "pulse 0.8s infinite" }}>📷</div>
-                  <div style={{ color: "#FFB74D", fontSize: "13px", marginTop: "10px", fontWeight: "700" }}>Leyendo código...</div>
-                </div>
-              ) : scanResult ? (
+          {!scanResult ? (
+            <div style={{ width: "100%", maxWidth: "300px", marginBottom: "20px" }}>
+              <div id="qr-reader" style={{ width: "100%", borderRadius: "16px", overflow: "hidden", border: "2px solid rgba(255,183,77,0.4)" }} />
+            </div>
+          ) : (
+            <div style={{ width: "260px", height: "160px", background: "rgba(255,255,255,0.04)", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "20px" }}>
+              {scanResult.error ? (
+                <div style={{ textAlign: "center", padding: "20px", color: "#FF5252", fontSize: "13px" }}>{scanResult.error}</div>
+              ) : (
                 <div style={{ textAlign: "center", padding: "20px" }}>
                   <div style={{ fontSize: "48px", marginBottom: "8px" }}>{scanResult.emoji}</div>
                   <div style={{ color: "#AED581", fontWeight: "800", fontSize: "16px" }}>✓ Producto detectado</div>
-                  <div style={{ color: "white", fontWeight: "700", fontSize: "15px", marginTop: "4px" }}>{scanResult.name}</div>
-                </div>
-              ) : (
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "36px", marginBottom: "8px", opacity: 0.4 }}>📷</div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>Cámara lista</div>
+                  <div style={{ color: "white", fontWeight: "700", fontSize: "14px", marginTop: "4px" }}>{scanResult.name}</div>
                 </div>
               )}
             </div>
-            {["top-left","top-right","bottom-left","bottom-right"].map(pos => (
-              <div key={pos} style={{ position: "absolute", width: 28, height: 28, borderColor: "#FFB74D", borderStyle: "solid", borderWidth: 0,
-                ...(pos === "top-left" ? { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderRadius: "4px 0 0 0" } :
-                   pos === "top-right" ? { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderRadius: "0 4px 0 0" } :
-                   pos === "bottom-left" ? { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderRadius: "0 0 0 4px" } :
-                   { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderRadius: "0 0 4px 0" })
-              }} />
-            ))}
-          </div>
+          )}
           {!scanResult ? (
-            <button onClick={simulateScan} disabled={scanLoading}
+            <button onClick={startScanner} disabled={scanLoading}
               style={{ padding: "16px 40px", background: scanLoading ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "16px", color: scanLoading ? "#666" : "#1A1A2E", fontSize: "16px", fontWeight: "800", cursor: scanLoading ? "not-allowed" : "pointer" }}>
-              {scanLoading ? "Escaneando..." : "📷 Escanear"}
+              {scanLoading ? "Iniciando cámara..." : "📷 Iniciar escáner"}
             </button>
           ) : (
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => { setScanResult(null); setScanLoading(false); }} style={{ padding: "14px 24px", background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "14px", color: "white", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>Volver a escanear</button>
-              <button onClick={() => { addProduct({ ...scanResult }); setShowScanner(false); setScanResult(null); setActiveTab("inventory"); }}
-                style={{ padding: "14px 24px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "14px", fontWeight: "800", cursor: "pointer" }}>
-                ✓ Agregar al inventario
-              </button>
+              {!scanResult.error && (
+                <button onClick={() => { addProduct({ ...scanResult }); stopScanner(); setShowScanner(false); setScanResult(null); setActiveTab("inventory"); }}
+                  style={{ padding: "14px 24px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "14px", fontWeight: "800", cursor: "pointer" }}>
+                  ✓ Agregar al inventario
+                </button>
+              )}
             </div>
           )}
         </div>
