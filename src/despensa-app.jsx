@@ -1113,10 +1113,24 @@ export default function App() {
               ))}
             </div>
           </div>
-          <button onClick={fetchAIRecipes} disabled={aiLoading}
-            style={{ width: "100%", marginBottom: "20px", padding: "14px", background: aiLoading ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #1A1A4E, #2D1B69)", border: "1px solid rgba(138,43,226,0.4)", borderRadius: "16px", color: aiLoading ? "#B0A090" : "#D4A8FF", fontSize: "14px", fontWeight: "700", cursor: aiLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-            {aiLoading ? <><span style={{ animation: "pulse 1s infinite" }}>✨</span> Generando recetas con IA...</> : <><span>✨</span> Generar recetas con IA</>}
-          </button>
+          {isPremium ? (
+            <button onClick={fetchAIRecipes} disabled={aiLoading}
+              style={{ width: "100%", marginBottom: "20px", padding: "14px", background: aiLoading ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #1A1A4E, #2D1B69)", border: "1px solid rgba(138,43,226,0.4)", borderRadius: "16px", color: aiLoading ? "#B0A090" : "#D4A8FF", fontSize: "14px", fontWeight: "700", cursor: aiLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+              {aiLoading ? <><span style={{ animation: "pulse 1s infinite" }}>✨</span> Generando recetas con IA...</> : <><span>✨</span> Generar recetas con IA</>}
+            </button>
+          ) : (
+            <div onClick={() => setActiveTab("premium")}
+              style={{ width: "100%", marginBottom: "20px", padding: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,183,77,0.25)", borderRadius: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", boxSizing: "border-box" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "22px" }}>✨</span>
+                <div>
+                  <div style={{ color: "#F5E6D0", fontWeight: "700", fontSize: "14px" }}>Recetas con IA</div>
+                  <div style={{ color: "#B0A090", fontSize: "12px" }}>Exclusivo Premium</div>
+                </div>
+              </div>
+              <span style={{ background: "linear-gradient(135deg, #FF8C42, #FFB74D)", color: "#1A1A2E", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "800", whiteSpace: "nowrap" }}>⭐ Activar</span>
+            </div>
+          )}
           {aiError && <div style={{ color: "#FF5252", fontSize: "13px", textAlign: "center", marginBottom: "16px" }}>{aiError}</div>}
           {aiRecipes.length > 0 && (
             <div style={{ marginBottom: "24px" }}>
