@@ -164,7 +164,7 @@ function AuthScreen({ onAuth }) {
 
 // ── Add Product Modal ─────────────────────────────────────────────────────────
 function AddProductModal({ onClose, onAdd, currentCount, isPremium }) {
-  const [form, setForm] = useState({ name: "", emoji: "🛒", category: "fridge", quantity: 1, unit: "pzas", expiry: "" });
+  const [form, setForm] = useState({ name: "", emoji: "🛒", category: "fridge", quantity: 1, unit: "pzas", expiry: "", price: "" });
   const emojis = ["🥛","🥚","🧀","🍗","🥩","🐟","🥬","🍅","🧅","🧄","🫘","🍚","🍝","🫒","🧈","🍞","🫙","🥫"];
   const atLimit = !isPremium && currentCount >= FREE_LIMIT;
 
@@ -241,10 +241,19 @@ function AddProductModal({ onClose, onAdd, currentCount, isPremium }) {
           </div>
         </div>
 
-        <div style={{ marginBottom: "20px" }}>
+        <div style={{ marginBottom: "14px" }}>
           <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad</label>
           <input type="date" value={form.expiry} onChange={e => setForm({...form, expiry: e.target.value})}
             style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", boxSizing: "border-box", outline: "none" }} />
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Precio estimado <span style={{ color: "#666", fontWeight: "400", textTransform: "none", letterSpacing: 0 }}>(opcional, para calcular ahorro)</span></label>
+          <div style={{ position: "relative", marginTop: "8px" }}>
+            <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#B0A090", fontSize: "15px", fontWeight: "600" }}>$</span>
+            <input type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} placeholder="0.00"
+              style={{ width: "100%", padding: "12px 14px 12px 28px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", boxSizing: "border-box", outline: "none" }} />
+          </div>
         </div>
 
         <button onClick={() => { if (form.name && form.expiry) { onAdd(form); onClose(); } }}
@@ -642,7 +651,8 @@ export default function App() {
       quantity: Number(form.quantity) || 1,
       unit: form.unit || "pza",
       expiry: form.expiry || null,
-      emoji: form.emoji || "📦"
+      emoji: form.emoji || "📦",
+      price: form.price ? parseFloat(form.price) : null
     };
     const { data, error } = await supabase.from("products").insert(newProduct).select().single();
     if (!error && data) setProducts(prev => [data, ...prev]);
@@ -923,7 +933,7 @@ export default function App() {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
             {[
               { label: "Total productos", value: products.length, icon: "📦", color: "#4FC3F7" },
               { label: "Por caducar", value: expiringSoon.length, icon: "⚠️", color: "#FF9800" },
@@ -937,6 +947,47 @@ export default function App() {
               </div>
             ))}
           </div>
+
+          {/* SAVINGS CARD */}
+          {(() => {
+            const withPrice = products.filter(p => p.price && p.price > 0);
+            const saved = withPrice.filter(p => !p.expiry || getDaysToExpiry(p.expiry) >= 0);
+            const totalSaved = saved.reduce((sum, p) => sum + (parseFloat(p.price) * parseFloat(p.quantity || 1)), 0);
+            const wasted = withPrice.filter(p => p.expiry && getDaysToExpiry(p.expiry) < 0);
+            const totalWasted = wasted.reduce((sum, p) => sum + (parseFloat(p.price) * parseFloat(p.quantity || 1)), 0);
+            const hasData = withPrice.length > 0;
+            return (
+              <div style={{ background: hasData ? "linear-gradient(135deg, rgba(174,213,129,0.08), rgba(255,183,77,0.06))" : "rgba(255,255,255,0.03)", border: `1px solid ${hasData ? "rgba(174,213,129,0.2)" : "rgba(255,255,255,0.06)"}`, borderRadius: "18px", padding: "18px", marginBottom: "24px" }}>
+                {hasData ? (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                      <span style={{ fontSize: "22px" }}>💰</span>
+                      <span style={{ color: "#F5E6D0", fontWeight: "700", fontSize: "15px" }}>Ahorro estimado</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      <div style={{ background: "rgba(174,213,129,0.08)", borderRadius: "12px", padding: "12px", textAlign: "center" }}>
+                        <div style={{ fontSize: "20px", fontWeight: "800", color: "#AED581" }}>${totalSaved.toFixed(0)} <span style={{ fontSize: "11px", fontWeight: "600" }}>MXN</span></div>
+                        <div style={{ fontSize: "11px", color: "#B0A090", marginTop: "3px" }}>En inventario activo</div>
+                      </div>
+                      <div style={{ background: "rgba(255,82,82,0.06)", borderRadius: "12px", padding: "12px", textAlign: "center" }}>
+                        <div style={{ fontSize: "20px", fontWeight: "800", color: totalWasted > 0 ? "#FF5252" : "#B0A090" }}>${totalWasted.toFixed(0)} <span style={{ fontSize: "11px", fontWeight: "600" }}>MXN</span></div>
+                        <div style={{ fontSize: "11px", color: "#B0A090", marginTop: "3px" }}>Desperdiciado</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: "10px", fontSize: "11px", color: "#666", textAlign: "center" }}>{withPrice.length} de {products.length} productos con precio registrado</div>
+                  </>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ fontSize: "28px" }}>💰</span>
+                    <div>
+                      <div style={{ color: "#F5E6D0", fontWeight: "700", fontSize: "14px" }}>Registra tus ahorros</div>
+                      <div style={{ color: "#B0A090", fontSize: "12px", marginTop: "2px" }}>Agrega el precio al crear o editar productos para ver cuánto dinero ahorras evitando desperdicios.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {(expiringSoon.length > 0 || expired.length > 0) && (
             <div style={{ background: "linear-gradient(135deg, rgba(255,82,82,0.1), rgba(255,152,0,0.1))", border: "1px solid rgba(255,152,0,0.2)", borderRadius: "18px", padding: "16px", marginBottom: "24px" }}>
@@ -1425,6 +1476,16 @@ export default function App() {
                 style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
             </div>
 
+            {/* Precio */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Precio estimado <span style={{ color: "#666", fontWeight: "400", textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
+              <div style={{ position: "relative", marginTop: "8px" }}>
+                <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#B0A090", fontSize: "15px", fontWeight: "600" }}>$</span>
+                <input type="number" value={editingProduct.price || ""} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} placeholder="0.00"
+                  style={{ width: "100%", padding: "12px 14px 12px 28px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+              </div>
+            </div>
+
             {/* Cantidad actual */}
             <div style={{ marginBottom: "16px" }}>
               <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Cantidad actual</label>
@@ -1471,7 +1532,7 @@ export default function App() {
             </div>
 
             <button onClick={() => {
-              updateProduct(editingProduct.id, { name: editingProduct.name, quantity: editingProduct.quantity, unit: editingProduct.unit, category: editingProduct.category, expiry: editingProduct.expiry || null });
+              updateProduct(editingProduct.id, { name: editingProduct.name, quantity: editingProduct.quantity, unit: editingProduct.unit, category: editingProduct.category, expiry: editingProduct.expiry || null, price: editingProduct.price ? parseFloat(editingProduct.price) : null });
               setEditingProduct(null);
             }} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "16px", fontWeight: "800", cursor: "pointer" }}>
               ✓ Guardar cambios
