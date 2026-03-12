@@ -313,47 +313,15 @@ function RecipeModal({ recipe, onClose }) {
 }
 
 // ── MercadoPago Checkout ──────────────────────────────────────────────────────
+const MP_LINKS = {
+  monthly: "https://www.mercadopago.com.mx/subscriptions/checkout?preapproval_plan_id=cb22be3122454b5eb1c892b0f9379f90",
+  annual: "https://www.mercadopago.com.mx/subscriptions/checkout?preapproval_plan_id=392bc8a4acb04a1a8ea743a7f40b59d1",
+};
+
 function CheckoutMP({ plan, userEmail, onBack, onSuccess }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handlePay = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      // Crear preferencia de suscripción via MercadoPago
-      const amount = plan.id === "annual" ? 349 : 49;
-      const frequency = plan.id === "annual" ? 12 : 1;
-
-      const response = await fetch("https://api.mercadopago.com/preapproval_plan", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${MP_ACCESS_TOKEN}`,
-        },
-        body: JSON.stringify({
-          reason: `Despensa App Premium - Plan ${plan.name}`,
-          auto_recurring: {
-            frequency,
-            frequency_type: "months",
-            transaction_amount: amount,
-            currency_id: "MXN",
-          },
-          back_url: "https://despensa-app.vercel.app",
-        }),
-      });
-
-      const data = await response.json();
-      if (data.init_point) {
-        window.open(data.init_point, "_blank");
-        onSuccess();
-      } else {
-        throw new Error(data.message || "Error al crear el pago");
-      }
-    } catch (e) {
-      setError("No se pudo conectar con MercadoPago. Intenta de nuevo.");
-    }
-    setLoading(false);
+  const handlePay = () => {
+    window.open(MP_LINKS[plan.id], "_blank");
+    onSuccess();
   };
 
   return (
@@ -383,19 +351,9 @@ function CheckoutMP({ plan, userEmail, onBack, onSuccess }) {
         </div>
       </div>
 
-      {error && (
-        <div style={{ background: "rgba(255,82,82,0.1)", border: "1px solid rgba(255,82,82,0.3)", borderRadius: "12px", padding: "12px", color: "#FF5252", fontSize: "13px", marginBottom: "16px" }}>
-          {error}
-        </div>
-      )}
-
-      <button onClick={handlePay} disabled={loading}
-        style={{ width: "100%", padding: "16px", background: loading ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg, #009EE3, #00C4FF)", border: "none", borderRadius: "16px", color: loading ? "#666" : "white", fontSize: "16px", fontWeight: "800", cursor: loading ? "not-allowed" : "pointer", marginBottom: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-        {loading ? (
-          <><span style={{ animation: "pulse 1s infinite" }}>⏳</span> Procesando...</>
-        ) : (
-          <>💳 Pagar con MercadoPago</>
-        )}
+      <button onClick={handlePay}
+        style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #009EE3, #00C4FF)", border: "none", borderRadius: "16px", color: "white", fontSize: "16px", fontWeight: "800", cursor: "pointer", marginBottom: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+        💳 Pagar con MercadoPago
       </button>
 
       <div style={{ display: "flex", justifyContent: "center", gap: "16px", marginTop: "12px" }}>
