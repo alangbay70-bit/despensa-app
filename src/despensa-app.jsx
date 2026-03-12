@@ -398,6 +398,7 @@ export default function App() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
   const [couponSuccess, setCouponSuccess] = useState("");
+  const [editingProduct, setEditingProduct] = useState(null);
 
   // ── Auth listener ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -440,6 +441,11 @@ export default function App() {
   const removeProduct = async (id) => {
     await supabase.from("products").delete().eq("id", id);
     setProducts(prev => prev.filter(p => p.id !== id));
+  };
+
+  const updateProduct = async (id, updates) => {
+    const { error } = await supabase.from("products").update(updates).eq("id", id);
+    if (!error) setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
   };
 
   const handleSignOut = async () => {
@@ -725,7 +731,10 @@ export default function App() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
                     <ExpiryBadge days={days} />
-                    <button onClick={() => removeProduct(product.id)} style={{ background: "rgba(255,82,82,0.1)", border: "none", color: "#FF5252", borderRadius: "8px", padding: "4px 8px", fontSize: "12px", cursor: "pointer" }}>Quitar</button>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button onClick={() => setEditingProduct(product)} style={{ background: "rgba(255,183,77,0.1)", border: "none", color: "#FFB74D", borderRadius: "8px", padding: "4px 8px", fontSize: "12px", cursor: "pointer" }}>✏️ Editar</button>
+                      <button onClick={() => removeProduct(product.id)} style={{ background: "rgba(255,82,82,0.1)", border: "none", color: "#FF5252", borderRadius: "8px", padding: "4px 8px", fontSize: "12px", cursor: "pointer" }}>Quitar</button>
+                    </div>
                   </div>
                 </div>
               );
@@ -1026,6 +1035,72 @@ export default function App() {
 
       {showAddModal && <AddProductModal onClose={() => setShowAddModal(false)} onAdd={addProduct} currentCount={products.length} isPremium={isPremium} />}
       {selectedRecipe && <RecipeModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />}
+
+      {/* EDIT PRODUCT MODAL */}
+      {editingProduct && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#1A1A2E", borderRadius: "24px 24px 0 0", padding: "28px 24px 40px", width: "100%", maxWidth: "480px", animation: "slideUp 0.3s ease" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h3 style={{ color: "#F5E6D0", fontSize: "20px", fontFamily: "'Playfair Display', serif", margin: 0 }}>
+                {editingProduct.emoji} {editingProduct.name}
+              </h3>
+              <button onClick={() => setEditingProduct(null)} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#F5E6D0", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: "16px" }}>✕</button>
+            </div>
+
+            {/* Cantidad actual */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Cantidad actual</label>
+              <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                <input type="number" value={editingProduct.quantity} onChange={e => setEditingProduct({...editingProduct, quantity: e.target.value})}
+                  style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none" }} />
+                <select value={editingProduct.unit} onChange={e => setEditingProduct({...editingProduct, unit: e.target.value})}
+                  style={{ flex: 1, padding: "12px 14px", background: "#1A1A2E", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none" }}>
+                  {["pzas","kg","g","L","ml","bot","caja","bolsa","cabeza","lata"].map(u => <option key={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Registrar salida */}
+            <div style={{ background: "rgba(255,82,82,0.06)", border: "1px solid rgba(255,82,82,0.15)", borderRadius: "14px", padding: "14px", marginBottom: "16px" }}>
+              <label style={{ color: "#FF8A80", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Registrar salida (restar)</label>
+              <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                <input type="number" placeholder="Cantidad usada" id="salidaInput"
+                  style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,82,82,0.2)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none" }} />
+                <button onClick={() => {
+                  const salida = parseFloat(document.getElementById("salidaInput").value);
+                  if (!isNaN(salida) && salida > 0) {
+                    const nueva = Math.max(0, parseFloat(editingProduct.quantity) - salida);
+                    setEditingProduct({...editingProduct, quantity: nueva});
+                    document.getElementById("salidaInput").value = "";
+                  }
+                }} style={{ padding: "12px 16px", background: "rgba(255,82,82,0.2)", border: "none", borderRadius: "12px", color: "#FF5252", fontWeight: "800", fontSize: "14px", cursor: "pointer" }}>
+                  − Restar
+                </button>
+              </div>
+            </div>
+
+            {/* Cambiar categoría */}
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Ubicación</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "8px" }}>
+                {CATEGORIES.map(cat => (
+                  <button key={cat.id} onClick={() => setEditingProduct({...editingProduct, category: cat.id})}
+                    style={{ padding: "10px", background: editingProduct.category === cat.id ? `${cat.color}30` : "rgba(255,255,255,0.05)", border: `2px solid ${editingProduct.category === cat.id ? cat.color : "transparent"}`, borderRadius: "10px", color: "#F5E6D0", fontSize: "13px", cursor: "pointer" }}>
+                    {cat.icon} {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => {
+              updateProduct(editingProduct.id, { quantity: editingProduct.quantity, unit: editingProduct.unit, category: editingProduct.category });
+              setEditingProduct(null);
+            }} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "16px", fontWeight: "800", cursor: "pointer" }}>
+              ✓ Guardar cambios
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
