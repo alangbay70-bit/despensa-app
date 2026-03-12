@@ -394,6 +394,10 @@ export default function App() {
   const [aiError, setAiError] = useState("");
   const [mealType, setMealType] = useState("");
   const [dinerType, setDinerType] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [couponSuccess, setCouponSuccess] = useState("");
 
   // ── Auth listener ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -441,6 +445,35 @@ export default function App() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null); setProducts([]); setIsPremium(false);
+  };
+
+  const redeemCoupon = async () => {
+    setCouponError(""); setCouponSuccess(""); setCouponLoading(true);
+    const code = couponCode.trim().toUpperCase();
+    if (!code) { setCouponError("Por favor ingresa un código."); setCouponLoading(false); return; }
+    try {
+      // Buscar cupón
+      const { data: coupon, error: fetchError } = await supabase
+        .from("coupons").select("*").eq("code", code).single();
+      if (fetchError || !coupon) { setCouponError("Código inválido. Verifica e intenta de nuevo."); setCouponLoading(false); return; }
+      if (coupon.used_by) { setCouponError("Este código ya fue utilizado."); setCouponLoading(false); return; }
+      // Calcular fecha de vencimiento
+      let expiresAt = null;
+      if (coupon.duration_months) {
+        const d = new Date();
+        d.setMonth(d.getMonth() + coupon.duration_months);
+        expiresAt = d.toISOString();
+      }
+      // Actualizar perfil del usuario
+      await supabase.from("profiles").update({ plan: "premium", plan_expires_at: expiresAt }).eq("id", user.id);
+      // Marcar cupón como usado
+      await supabase.from("coupons").update({ used_by: user.id, used_at: new Date().toISOString() }).eq("code", code);
+      setIsPremium(true);
+      setCouponSuccess(coupon.duration_months ? `¡Cupón aplicado! Tienes ${coupon.duration_months} meses de Premium gratis. 🎉` : "¡Cupón aplicado! Tienes acceso Premium indefinido. 🎉");
+    } catch (e) {
+      setCouponError("Ocurrió un error. Intenta de nuevo.");
+    }
+    setCouponLoading(false);
   };
 
   const MEAL_TYPES = [
@@ -867,6 +900,30 @@ export default function App() {
                     style={{ width: "100%", padding: "16px", background: selectedPlan ? "linear-gradient(135deg, #FF8C42, #FFB74D)" : "rgba(255,255,255,0.08)", border: "none", borderRadius: "16px", color: selectedPlan ? "#1A1A2E" : "#666", fontSize: "16px", fontWeight: "800", cursor: selectedPlan ? "pointer" : "not-allowed" }}>
                     {selectedPlan ? `Continuar con plan ${PLANS.find(p=>p.id===selectedPlan)?.name} →` : "Selecciona un plan"}
                   </button>
+
+                  {/* CUPÓN */}
+                  <div style={{ marginTop: "28px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "18px", padding: "20px" }}>
+                    <div style={{ textAlign: "center", marginBottom: "14px" }}>
+                      <span style={{ fontSize: "22px" }}>🎟️</span>
+                      <div style={{ fontWeight: "700", fontSize: "15px", color: "#F5E6D0", marginTop: "4px" }}>¿Tienes un cupón?</div>
+                      <div style={{ color: "#B0A090", fontSize: "12px", marginTop: "2px" }}>Ingresa tu código para activar Premium gratis</div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <input
+                        value={couponCode}
+                        onChange={e => { setCouponCode(e.target.value); setCouponError(""); setCouponSuccess(""); }}
+                        onKeyDown={e => e.key === "Enter" && redeemCoupon()}
+                        placeholder="Ej. BETA-DESP-A1B2"
+                        style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", color: "#F5E6D0", fontSize: "14px", outline: "none", letterSpacing: "1px" }}
+                      />
+                      <button onClick={redeemCoupon} disabled={couponLoading}
+                        style={{ padding: "12px 18px", background: couponLoading ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "12px", color: couponLoading ? "#666" : "#1A1A2E", fontWeight: "800", fontSize: "14px", cursor: couponLoading ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+                        {couponLoading ? "..." : "Aplicar"}
+                      </button>
+                    </div>
+                    {couponError && <div style={{ marginTop: "10px", background: "rgba(255,82,82,0.1)", border: "1px solid rgba(255,82,82,0.3)", borderRadius: "10px", padding: "10px 12px", color: "#FF5252", fontSize: "13px" }}>{couponError}</div>}
+                    {couponSuccess && <div style={{ marginTop: "10px", background: "rgba(174,213,129,0.1)", border: "1px solid rgba(174,213,129,0.3)", borderRadius: "10px", padding: "10px 12px", color: "#AED581", fontSize: "13px" }}>{couponSuccess}</div>}
+                  </div>
                 </>
               )}
               {paymentStep === "checkout" && (
