@@ -242,7 +242,7 @@ function AddProductModal({ onClose, onAdd, currentCount, isPremium }) {
         </div>
 
         <div style={{ marginBottom: "14px" }}>
-          <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad <span style={{ color: "#666", fontWeight: "400", textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
+          <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad</label>
           <input type="date" value={form.expiry} onChange={e => setForm({...form, expiry: e.target.value})}
             style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", boxSizing: "border-box", outline: "none" }} />
         </div>
@@ -654,8 +654,14 @@ export default function App() {
       emoji: form.emoji || "📦",
       price: form.price ? parseFloat(form.price) : null
     };
+    console.log("INSERTING PRODUCT:", newProduct);
     const { data, error } = await supabase.from("products").insert(newProduct).select().single();
-    if (!error && data) setProducts(prev => [data, ...prev]);
+    console.log("INSERT RESULT:", { data, error });
+    if (error) {
+      alert("Error al guardar: " + error.message);
+      return;
+    }
+    if (data) setProducts(prev => [data, ...prev]);
   };
 
   const createHousehold = async (name) => {
