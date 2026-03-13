@@ -242,7 +242,7 @@ function AddProductModal({ onClose, onAdd, currentCount, isPremium }) {
         </div>
 
         <div style={{ marginBottom: "14px" }}>
-          <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad</label>
+          <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad <span style={{ color: "#666", fontWeight: "400", textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
           <input type="date" value={form.expiry} onChange={e => setForm({...form, expiry: e.target.value})}
             style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", boxSizing: "border-box", outline: "none" }} />
         </div>
@@ -256,7 +256,7 @@ function AddProductModal({ onClose, onAdd, currentCount, isPremium }) {
           </div>
         </div>
 
-        <button onClick={() => { if (form.name && form.expiry) { onAdd(form); onClose(); } }}
+        <button onClick={() => { if (form.name) { onAdd(form); onClose(); } }}
           style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "16px", fontWeight: "800", cursor: "pointer" }}>
           ✓ Agregar al Inventario
         </button>
