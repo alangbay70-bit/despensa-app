@@ -520,13 +520,21 @@ function HouseholdModal({ household, members, userId, isPremium, onCreateHouseho
             <div style={{ background: "rgba(174,213,129,0.08)", border: "1px solid rgba(174,213,129,0.2)", borderRadius: "16px", padding: "16px", marginBottom: "20px" }}>
               <div style={{ fontWeight: "800", fontSize: "17px", color: "#AED581", marginBottom: "6px" }}>🏠 {hh.name}</div>
               <div style={{ color: "#B0A090", fontSize: "13px", marginBottom: "12px" }}>{(members?.length || 0) + 1} de 5 miembros</div>
-              {hh.owner_id === userId && (
-                <div>
+              <div>
                   <div style={{ color: "#B0A090", fontSize: "12px", marginBottom: "6px", fontWeight: "600" }}>CÓDIGO DE INVITACIÓN</div>
                   <div style={{ background: "#0F0F1A", borderRadius: "10px", padding: "12px", textAlign: "center", letterSpacing: "6px", fontSize: "22px", fontWeight: "800", color: "#FFB74D" }}>{hh.invite_code}</div>
-                  <div style={{ color: "#B0A090", fontSize: "11px", textAlign: "center", marginTop: "6px" }}>Comparte este código con tu familia</div>
+                  <div style={{ color: "#B0A090", fontSize: "11px", textAlign: "center", marginTop: "4px", marginBottom: "10px" }}>Comparte este código con tu familia</div>
+                  <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                    <button onClick={() => { navigator.clipboard.writeText(hh.invite_code); alert("¡Código copiado!"); }}
+                      style={{ flex: 1, padding: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "#F5E6D0", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
+                      📋 Copiar código
+                    </button>
+                    <button onClick={() => { const msg = encodeURIComponent(`¡Hola! Te invito a unirte a mi despensa en Mi Despensa App 🧺\n\n1. Entra a: https://despensa.alangbay.com\n2. Crea tu cuenta gratuita\n3. Ve a la sección ⭐ Premium\n4. Ingresa el código: ${hh.invite_code}`); window.open(`https://wa.me/?text=${msg}`, "_blank"); }}
+                      style={{ flex: 1, padding: "10px", background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.3)", borderRadius: "10px", color: "#25D366", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
+                      💬 WhatsApp
+                    </button>
+                  </div>
                 </div>
-              )}
             </div>
             <button onClick={handleLeave} disabled={loading}
               style={{ width: "100%", padding: "14px", background: "rgba(255,82,82,0.1)", border: "1px solid rgba(255,82,82,0.2)", borderRadius: "14px", color: "#FF5252", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
@@ -734,24 +742,46 @@ export default function App() {
     const code = couponCode.trim().toUpperCase();
     if (!code) { setCouponError("Por favor ingresa un código."); setCouponLoading(false); return; }
     try {
-      // Buscar cupón
+      // 1️⃣ Intentar como cupón Premium
       const { data: coupon, error: fetchError } = await supabase
         .from("coupons").select("*").eq("code", code).single();
-      if (fetchError || !coupon) { setCouponError("Código inválido. Verifica e intenta de nuevo."); setCouponLoading(false); return; }
-      if (coupon.used_by) { setCouponError("Este código ya fue utilizado."); setCouponLoading(false); return; }
-      // Calcular fecha de vencimiento
-      let expiresAt = null;
-      if (coupon.duration_months) {
-        const d = new Date();
-        d.setMonth(d.getMonth() + coupon.duration_months);
-        expiresAt = d.toISOString();
+
+      if (!fetchError && coupon) {
+        // Es un cupón Premium
+        if (coupon.used_by) { setCouponError("Este cupón ya fue utilizado."); setCouponLoading(false); return; }
+        let expiresAt = null;
+        if (coupon.duration_months) {
+          const d = new Date();
+          d.setMonth(d.getMonth() + coupon.duration_months);
+          expiresAt = d.toISOString();
+        }
+        await supabase.from("profiles").update({ plan: "premium", plan_expires_at: expiresAt }).eq("id", user.id);
+        await supabase.from("coupons").update({ used_by: user.id, used_at: new Date().toISOString() }).eq("code", code);
+        setIsPremium(true);
+        setCouponSuccess(coupon.duration_months ? `¡Cupón aplicado! Tienes ${coupon.duration_months} meses de Premium gratis. 🎉` : "¡Cupón aplicado! Tienes acceso Premium indefinido. 🎉");
+        setCouponLoading(false);
+        return;
       }
-      // Actualizar perfil del usuario
-      await supabase.from("profiles").update({ plan: "premium", plan_expires_at: expiresAt }).eq("id", user.id);
-      // Marcar cupón como usado
-      await supabase.from("coupons").update({ used_by: user.id, used_at: new Date().toISOString() }).eq("code", code);
-      setIsPremium(true);
-      setCouponSuccess(coupon.duration_months ? `¡Cupón aplicado! Tienes ${coupon.duration_months} meses de Premium gratis. 🎉` : "¡Cupón aplicado! Tienes acceso Premium indefinido. 🎉");
+
+      // 2️⃣ Intentar como código de hogar
+      if (household) { setCouponError("Ya perteneces a un hogar compartido."); setCouponLoading(false); return; }
+      const { data: hh, error: hhError } = await supabase
+        .from("households").select("*").eq("invite_code", code).single();
+
+      if (!hhError && hh) {
+        const members = await supabase.from("household_members").select("user_id").eq("household_id", hh.id);
+        if ((members.data?.length || 0) >= 4) { setCouponError("Este hogar ya tiene el máximo de 5 miembros."); setCouponLoading(false); return; }
+        await supabase.from("household_members").insert({ household_id: hh.id, user_id: user.id });
+        await supabase.from("profiles").update({ household_id: hh.id }).eq("id", user.id);
+        await supabase.from("products").update({ household_id: hh.id }).eq("user_id", user.id);
+        setHousehold(hh);
+        setCouponSuccess(`¡Te uniste al hogar "${hh.name}" exitosamente! 🏠`);
+        setCouponLoading(false);
+        return;
+      }
+
+      // 3️⃣ Código no reconocido
+      setCouponError("Código inválido. Verifica e intenta de nuevo.");
     } catch (e) {
       setCouponError("Ocurrió un error. Intenta de nuevo.");
     }
@@ -1283,15 +1313,15 @@ export default function App() {
                   <div style={{ marginTop: "28px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "18px", padding: "20px" }}>
                     <div style={{ textAlign: "center", marginBottom: "14px" }}>
                       <span style={{ fontSize: "22px" }}>🎟️</span>
-                      <div style={{ fontWeight: "700", fontSize: "15px", color: "#F5E6D0", marginTop: "4px" }}>¿Tienes un cupón?</div>
-                      <div style={{ color: "#B0A090", fontSize: "12px", marginTop: "2px" }}>Ingresa tu código para activar Premium gratis</div>
+                      <div style={{ fontWeight: "700", fontSize: "15px", color: "#F5E6D0", marginTop: "4px" }}>¿Tienes un código?</div>
+                      <div style={{ color: "#B0A090", fontSize: "12px", marginTop: "2px" }}>Cupón Premium o código de invitación a un hogar</div>
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <input
                         value={couponCode}
                         onChange={e => { setCouponCode(e.target.value); setCouponError(""); setCouponSuccess(""); }}
                         onKeyDown={e => e.key === "Enter" && redeemCoupon()}
-                        placeholder="Ej. BETA-DESP-A1B2"
+                        placeholder="Cupón Premium o código de hogar"
                         style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", color: "#F5E6D0", fontSize: "14px", outline: "none", letterSpacing: "1px" }}
                       />
                       <button onClick={redeemCoupon} disabled={couponLoading}
