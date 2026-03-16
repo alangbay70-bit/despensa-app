@@ -617,8 +617,9 @@ export default function App() {
   }, [user, household]);
 
   // ── Expiry alert on load ─────────────────────────────────────────────────
+  const expiryAlertShown = useRef(false);
   useEffect(() => {
-    if (!products.length) return;
+    if (!products.length || expiryAlertShown.current) return;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const alertDays = 3;
     const expiring = products.filter(p => {
@@ -630,6 +631,7 @@ export default function App() {
       setExpiryAlertProducts(expiring);
       setShowExpiryAlert(true);
     }
+    expiryAlertShown.current = true;
   }, [products]);
 
   // ── Load user plan ────────────────────────────────────────────────────────
@@ -860,18 +862,22 @@ export default function App() {
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "anthropic-dangerous-request-browser": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1500,
+          model: "claude-haiku-4-5-20251001", max_tokens: 1500,
           messages: [{ role: "user", content: `Tengo estos ingredientes en casa: ${ingredientList}. Sugiere 3 recetas creativas ${mealFilter} ${dinerFilter} que pueda hacer con ellos. Responde SOLO con un JSON array (sin texto extra ni backticks) con este formato exacto: [{"name":"nombre","time":"X min","difficulty":"Facil","emoji":"🍽️","servings": 2,"mealType": "${mealType || 'Comida'}","dinerType": "${dinerType || ''}","ingredients": [{"qty": 1, "unit": "taza", "name": "Arroz"}],"steps":["paso detallado 1","paso detallado 2"],"tags":["tag1"]}]` }]
         })
       });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `Error ${response.status}`);
+      }
       const data = await response.json();
       const text = data.content?.find(b => b.type === "text")?.text || "";
       const clean = text.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
       setAiRecipes(parsed.map((r, i) => ({ ...r, id: 100 + i, matched: r.ingredients.map(i => i.name || i), score: 1 })));
-    } catch (e) { setAiError("No se pudieron cargar recetas. Intenta de nuevo."); }
+    } catch (e) { setAiError("No se pudieron cargar recetas: " + (e.message || "Intenta de nuevo.")); }
     setAiLoading(false);
   };
 
@@ -1375,12 +1381,39 @@ export default function App() {
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => { setScanResult(null); setScanLoading(false); }} style={{ padding: "14px 24px", background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "14px", color: "white", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>Volver a escanear</button>
               {!scanResult.error && (
-                <button
-                  disabled={!scanResult.name?.trim()}
-                  onClick={() => { addProduct({ ...scanResult }); stopScanner(); setShowScanner(false); setScanResult(null); setActiveTab("inventory"); }}
-                  style={{ padding: "14px 24px", background: scanResult.name?.trim() ? "linear-gradient(135deg, #FF8C42, #FFB74D)" : "rgba(255,255,255,0.1)", border: "none", borderRadius: "14px", color: scanResult.name?.trim() ? "#1A1A2E" : "#666", fontSize: "14px", fontWeight: "800", cursor: scanResult.name?.trim() ? "pointer" : "not-allowed" }}>
-                  ✓ Agregar al inventario
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%", maxWidth: "300px" }}>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input type="number" min="1" value={scanResult.quantity || 1}
+                      onChange={e => setScanResult({ ...scanResult, quantity: e.target.value })}
+                      placeholder="Cant."
+                      style={{ flex: 1, padding: "10px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "white", fontSize: "14px", outline: "none", textAlign: "center" }} />
+                    <select value={scanResult.unit || "pza"}
+                      onChange={e => setScanResult({ ...scanResult, unit: e.target.value })}
+                      style={{ flex: 1, padding: "10px", background: "#1A1A2E", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "white", fontSize: "13px", outline: "none" }}>
+                      {["pzas","kg","g","L","ml","bot","caja","bolsa","lata"].map(u => <option key={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ color: "rgba(255,255,255,0.4)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase" }}>Caducidad (opcional)</label>
+                    <input type="date" value={scanResult.expiry || ""}
+                      onChange={e => setScanResult({ ...scanResult, expiry: e.target.value })}
+                      style={{ width: "100%", marginTop: "4px", padding: "10px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "white", fontSize: "13px", outline: "none" }} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                    {CATEGORIES.map(cat => (
+                      <button key={cat.id} onClick={() => setScanResult({ ...scanResult, category: cat.id })}
+                        style={{ padding: "8px 6px", background: (scanResult.category || "pantry") === cat.id ? `${cat.color}30` : "rgba(255,255,255,0.06)", border: `2px solid ${(scanResult.category || "pantry") === cat.id ? cat.color : "transparent"}`, borderRadius: "8px", color: "white", fontSize: "11px", cursor: "pointer" }}>
+                        {cat.icon} {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    disabled={!scanResult.name?.trim()}
+                    onClick={() => { addProduct({ ...scanResult }); stopScanner(); setShowScanner(false); setScanResult(null); setActiveTab("inventory"); }}
+                    style={{ padding: "14px 24px", background: scanResult.name?.trim() ? "linear-gradient(135deg, #FF8C42, #FFB74D)" : "rgba(255,255,255,0.1)", border: "none", borderRadius: "14px", color: scanResult.name?.trim() ? "#1A1A2E" : "#666", fontSize: "14px", fontWeight: "800", cursor: scanResult.name?.trim() ? "pointer" : "not-allowed" }}>
+                    ✓ Agregar al inventario
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -1536,6 +1569,20 @@ export default function App() {
                   − Restar
                 </button>
               </div>
+            </div>
+
+            {/* Fecha de caducidad */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ color: "#B0A090", fontSize: "12px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Fecha de caducidad <span style={{ color: "#666", fontWeight: "400", textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
+              <input type="date" value={editingProduct.expiry || ""}
+                onChange={e => setEditingProduct({...editingProduct, expiry: e.target.value})}
+                style={{ width: "100%", marginTop: "8px", padding: "12px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#F5E6D0", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+              {editingProduct.expiry && (
+                <button onClick={() => setEditingProduct({...editingProduct, expiry: ""})}
+                  style={{ background: "none", border: "none", color: "#FF5252", fontSize: "12px", cursor: "pointer", marginTop: "4px", padding: 0 }}>
+                  × Quitar fecha
+                </button>
+              )}
             </div>
 
             {/* Cambiar categoría */}
