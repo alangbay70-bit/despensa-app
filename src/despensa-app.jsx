@@ -743,10 +743,10 @@ export default function App() {
     if (!code) { setCouponError("Por favor ingresa un código."); setCouponLoading(false); return; }
     try {
       // 1️⃣ Intentar como cupón Premium
-      const { data: coupon, error: fetchError } = await supabase
-        .from("coupons").select("*").eq("code", code).single();
+      const { data: coupon } = await supabase
+        .from("coupons").select("*").eq("code", code).maybeSingle();
 
-      if (!fetchError && coupon) {
+      if (coupon) {
         // Es un cupón Premium
         if (coupon.used_by) { setCouponError("Este cupón ya fue utilizado."); setCouponLoading(false); return; }
         let expiresAt = null;
@@ -764,11 +764,16 @@ export default function App() {
       }
 
       // 2️⃣ Intentar como código de hogar
-      if (household) { setCouponError("Ya perteneces a un hogar compartido."); setCouponLoading(false); return; }
-      const { data: hh, error: hhError } = await supabase
-        .from("households").select("*").eq("invite_code", code).single();
+      const { data: hh } = await supabase
+        .from("households").select("*").eq("invite_code", code).maybeSingle();
 
-      if (!hhError && hh) {
+      if (hh) {
+        // Verificar si el usuario ya tiene hogar consultando Supabase directamente
+        const { data: profile } = await supabase.from("profiles").select("household_id").eq("id", user.id).single();
+        if (profile?.household_id) { setCouponError("Ya perteneces a un hogar compartido."); setCouponLoading(false); return; }
+        // Verificar que el usuario no sea ya miembro
+        const { data: existingMember } = await supabase.from("household_members").select("user_id").eq("household_id", hh.id).eq("user_id", user.id).single();
+        if (existingMember) { setCouponError("Ya eres miembro de este hogar."); setCouponLoading(false); return; }
         const members = await supabase.from("household_members").select("user_id").eq("household_id", hh.id);
         if ((members.data?.length || 0) >= 4) { setCouponError("Este hogar ya tiene el máximo de 5 miembros."); setCouponLoading(false); return; }
         await supabase.from("household_members").insert({ household_id: hh.id, user_id: user.id });
