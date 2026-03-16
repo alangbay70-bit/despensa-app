@@ -423,7 +423,7 @@ function CheckoutMP({ plan, userEmail, onBack, onSuccess }) {
 }
 
 // ── Household Modal ───────────────────────────────────────────────────────────
-function HouseholdModal({ household, members, userId, onCreateHousehold, onJoinHousehold, onLeaveHousehold, onClose }) {
+function HouseholdModal({ household, members, userId, isPremium, onCreateHousehold, onJoinHousehold, onLeaveHousehold, onClose }) {
   const [view, setView] = useState(household ? "detail" : "home");
   const [houseName, setHouseName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -471,11 +471,17 @@ function HouseholdModal({ household, members, userId, onCreateHousehold, onJoinH
         {!hh && view === "home" && (
           <div>
             <p style={{ color: "#B0A090", fontSize: "14px", marginBottom: "20px", lineHeight: "1.6" }}>Comparte tu inventario con hasta 4 personas más. Todos verán y podrán editar los mismos productos.</p>
-            <button onClick={() => setView("create")} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "15px", fontWeight: "800", cursor: "pointer", marginBottom: "10px" }}>
-              🏠 Crear mi hogar
-            </button>
+            {isPremium ? (
+              <button onClick={() => setView("create")} style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "14px", color: "#1A1A2E", fontSize: "15px", fontWeight: "800", cursor: "pointer", marginBottom: "10px" }}>
+                🏠 Crear mi hogar
+              </button>
+            ) : (
+              <div style={{ background: "rgba(255,183,77,0.08)", border: "1px solid rgba(255,183,77,0.2)", borderRadius: "12px", padding: "12px 14px", marginBottom: "12px", fontSize: "13px", color: "#FFB74D" }}>
+                ⭐ Solo usuarios Premium pueden crear un hogar. Puedes unirte a uno con código de invitación.
+              </div>
+            )}
             <button onClick={() => setView("join")} style={{ width: "100%", padding: "16px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "14px", color: "#F5E6D0", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>
-              🔗 Unirme a un hogar existente
+              🔗 Unirme a un hogar con código
             </button>
           </div>
         )}
@@ -920,7 +926,7 @@ export default function App() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <button onClick={() => setShowScanner(true)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "14px", padding: "10px 14px", color: "#F5E6D0", fontWeight: "700", fontSize: "14px", cursor: "pointer" }}>📷</button>
             <button onClick={() => setShowAddModal(true)} style={{ background: "linear-gradient(135deg, #FF8C42, #FFB74D)", border: "none", borderRadius: "16px", padding: "10px 18px", color: "#1A1A2E", fontWeight: "800", fontSize: "14px", cursor: "pointer" }}>+ Agregar</button>
-            {isPremium && <button onClick={() => setShowHouseholdModal(true)} style={{ background: household ? "rgba(174,213,129,0.15)" : "rgba(255,255,255,0.07)", border: `1px solid ${household ? "rgba(174,213,129,0.3)" : "rgba(255,255,255,0.1)"}`, borderRadius: "12px", padding: "8px 12px", color: household ? "#AED581" : "#B0A090", fontSize: "12px", cursor: "pointer" }}>{household ? "🏠 Hogar" : "🏠"}</button>}
+            {(isPremium || household) && <button onClick={() => setShowHouseholdModal(true)} style={{ background: household ? "rgba(174,213,129,0.15)" : "rgba(255,255,255,0.07)", border: `1px solid ${household ? "rgba(174,213,129,0.3)" : "rgba(255,255,255,0.1)"}`, borderRadius: "12px", padding: "8px 12px", color: household ? "#AED581" : "#B0A090", fontSize: "12px", cursor: "pointer" }}>{household ? "🏠 Hogar" : "🏠"}</button>}
             <button onClick={handleSignOut} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "8px 12px", color: "#B0A090", fontSize: "12px", cursor: "pointer" }}>Salir</button>
           </div>
         </div>
@@ -1499,6 +1505,7 @@ export default function App() {
           household={household}
           members={householdMembers}
           userId={user?.id}
+          isPremium={isPremium}
           onCreateHousehold={createHousehold}
           onJoinHousehold={joinHousehold}
           onLeaveHousehold={leaveHousehold}
