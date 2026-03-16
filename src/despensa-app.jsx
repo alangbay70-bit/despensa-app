@@ -66,11 +66,13 @@ const RECIPES_DB = [
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getDaysToExpiry(expiryDate) {
+  if (!expiryDate) return null;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return Math.ceil((new Date(expiryDate) - today) / (1000 * 60 * 60 * 24));
 }
 
 function ExpiryBadge({ days }) {
+  if (days === null || days === undefined) return null;
   if (days < 0) return <span style={{ background: "#FF5252", color: "white", padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: "700" }}>Caducado</span>;
   if (days <= 2) return <span style={{ background: "#FF5252", color: "white", padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: "700" }}>¡{days}d!</span>;
   if (days <= 5) return <span style={{ background: "#FF9800", color: "white", padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: "700" }}>{days}d</span>;
@@ -762,8 +764,8 @@ export default function App() {
     { id: "Sin gluten", label: "Sin gluten", icon: "🌾" }, { id: "Deportista", label: "Deportista", icon: "💪" },
   ];
 
-  const expiringSoon = products.filter(p => getDaysToExpiry(p.expiry) <= 5 && getDaysToExpiry(p.expiry) >= 0);
-  const expired = products.filter(p => getDaysToExpiry(p.expiry) < 0);
+  const expiringSoon = products.filter(p => { const d = getDaysToExpiry(p.expiry); return d !== null && d <= 5 && d >= 0; });
+  const expired = products.filter(p => { const d = getDaysToExpiry(p.expiry); return d !== null && d < 0; });
   const filteredProducts = products.filter(p => {
     const matchCat = activeCategory === "all" || p.category === activeCategory;
     const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -860,23 +862,17 @@ export default function App() {
     const mealFilter = mealType ? `para ${mealType}` : "";
     const dinerFilter = dinerType ? `apta para ${dinerType}` : "";
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/recipes", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "anthropic-dangerous-request-browser": "true" },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001", max_tokens: 1500,
-          messages: [{ role: "user", content: `Tengo estos ingredientes en casa: ${ingredientList}. Sugiere 3 recetas creativas ${mealFilter} ${dinerFilter} que pueda hacer con ellos. Responde SOLO con un JSON array (sin texto extra ni backticks) con este formato exacto: [{"name":"nombre","time":"X min","difficulty":"Facil","emoji":"🍽️","servings": 2,"mealType": "${mealType || 'Comida'}","dinerType": "${dinerType || ''}","ingredients": [{"qty": 1, "unit": "taza", "name": "Arroz"}],"steps":["paso detallado 1","paso detallado 2"],"tags":["tag1"]}]` }]
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredientList, mealFilter, dinerFilter, mealType, dinerType })
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData?.error?.message || `Error ${response.status}`);
+        throw new Error(errData?.error || `Error ${response.status}`);
       }
       const data = await response.json();
-      const text = data.content?.find(b => b.type === "text")?.text || "";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      setAiRecipes(parsed.map((r, i) => ({ ...r, id: 100 + i, matched: r.ingredients.map(i => i.name || i), score: 1 })));
+      setAiRecipes(data.recipes.map((r, i) => ({ ...r, id: 100 + i, matched: r.ingredients.map(i => i.name || i), score: 1 })));
     } catch (e) { setAiError("No se pudieron cargar recetas: " + (e.message || "Intenta de nuevo.")); }
     setAiLoading(false);
   };
@@ -1073,7 +1069,7 @@ export default function App() {
               const days = getDaysToExpiry(product.expiry);
               const cat = CATEGORIES.find(c => c.id === product.category);
               return (
-                <div key={product.id} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${days <= 2 ? "rgba(255,82,82,0.3)" : days <= 5 ? "rgba(255,152,0,0.2)" : "rgba(255,255,255,0.07)"}`, borderRadius: "16px", padding: "14px 16px", marginBottom: "10px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <div key={product.id} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${days !== null && days <= 2 ? "rgba(255,82,82,0.3)" : days !== null && days <= 5 ? "rgba(255,152,0,0.2)" : "rgba(255,255,255,0.07)"}`, borderRadius: "16px", padding: "14px 16px", marginBottom: "10px", display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{ fontSize: "32px" }}>{product.emoji}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: "700", fontSize: "15px", marginBottom: "3px" }}>{product.name}</div>
